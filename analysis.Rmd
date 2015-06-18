@@ -1,0 +1,130 @@
+---
+title: "Motor Trend 1974 - Transmission and MPG"
+author: "Asa Downs"
+output: html_document
+---
+
+```{r setup, message=FALSE, warning=FALSE, echo=FALSE}
+library('ggplot2')
+library('car')
+library('dplyr')
+library('lmtest')
+library('knitr')
+library('kfigr')
+n <- nrow(mtcars)
+fit0 <- lm(mpg~1,mtcars)
+fit1 <- lm(mpg~factor(am), mtcars)
+fit2 <- update(fit1, mpg~factor(am)+wt)
+fit3 <- update(fit1, mpg~factor(am)+wt+hp)
+```
+
+##Executive Summary
+
+We explored MPG (Miles/(US) gallon) for for 32 automobiles (1973–74 models) by type of transmission (automatic or manual). We concluded that **manual transmission vehicles have higher MPG** when disregarding other factors. _This conclusion does not hold at a 95% confidence interval when holding weight and horsepower constant_. We looked at these two factors since they had a strong and understandable, negative effect on MPG. We demonstrate these conclusion through a number of different linear models, statistics, inferences, and plots.
+
+##Analysis
+
+For purposes of this analysis, 0 = automatic and 1 = manual for transmission type.
+
+###Phase 1
+
+Our initial analysis was to fit a model with mpg as the outcome and transmission type as the confounder.
+```{r summaryFit1,echo=FALSE, results='asis'}
+confint1 <- confint(fit1)
+sumFit1 <- summary(fit1)
+kable(sumFit1$coef,digits=2)
+```
+
+As we can see in the results from the table above there is a **`r round(sumFit1$coef[2,1],2)` MPG increase for manual transmisions over automatic transmissions**. We can see these results plotted in [figure 1](#mpgAmPlot). We can confirm these results with the confidence interval below.
+
+```{r confint1, echo=FALSE, result='asis'}
+kable(confint1, digits=2)
+```
+
+Unfortunately, the residuals plot is not at all random in appearance leading us to believe there is a problem with our model [figure 2](#residPlotFit1).
+
+This is supported by our adjusted R-squared value **`r round(sumFit1$adj.r.squared,2)`** which suggest only this proportion of the variance in mpg is explained by transmission type alone.
+
+*******
+
+###Phase 2
+
+Given the problems with our initial model (which barely improves on the intercept only model for MPG). We tried to improve the fit of our model. This was done primarily through common sense regarding vehicles and playing around with the data. The final parsimonious model that was settled on looked at transmission type holding vehicle weight in lb/1000 and gross horsepower constant. 
+
+[Figure 3](#residCompPlot) shows the reduced residual spread of our model. We also ran an analysis of variance table to ensure that the new factors we added to our model were significant and to review their impact on variance. This is shown below.
+
+```{r anova,echo=FALSE, results='asis'}
+modelSelect <- anova(fit1,fit2,fit3)
+confint2 <- confint(fit3)
+sumFit3 <- summary(fit3)
+kable(modelSelect, digits=3)
+```
+
+As we can see from the residual plot [Figure 4](#residPlotFit3) for our new model there is no discernible pattern which is what we are looking for with a robust model.
+
+It is important to note that the predictive power of our model is greatly increased as shown by our adjusted R-squared value: **`r round(sumFit3$adj.r.squared,2)`**. Turning back to our analysis we review the summary of our new model:
+
+```{r Fit3,echo=FALSE, results='asis'}
+kable(sumFit3$coef,digits=2)
+```
+
+As we can see in the results from the table above there is a **much smaller `r round(sumFit3$coef[2,1],2)` MPG increase for manual transmisions over automatic transmissions *when holding weight and horsepower constant***. 
+
+_Our 95% confidence interval now includes negative values so we cannot be sure at this confidence level that manual transmissions get higher MPG_ as shown below.
+
+```{r confint2, echo=FALSE, results='asis'}
+kable(confint2, digits=3)
+```
+
+As a final step we review the diagnostic plots for our new model and detect nothing anomalous [Figure 5](#summaryFit3).
+
+##Plot Appendix
+
+```{r mpgAmPlot, anchor='mpgAmPlot', echo=FALSE}
+ggplot(mtcars, aes(x=factor(am), y=mpg,colour=factor(am))) + 
+  geom_point() +
+  geom_smooth(method="lm",formula=y~x,aes(group=1)) +
+  xlab('Transmission (0 = automatic, 1 = manual)') +
+  ylab('Miles Per Gallon') +
+  ggtitle('MPG by Transmission Type (1)') +
+  guides(colour=guide_legend(title='Transmission'))
+```
+
+
+```{r residPlotFit1, anchor='residPlotFit1', echo=FALSE}
+qplot(.fitted, .resid, data = fortify(fit1, mtcars), colour=factor(am)) +
+  geom_hline(yintercept = 0) +
+  xlab('Fitted values\nlm(mpg~am)') +
+  ylab('Residual MPG') +
+  ggtitle('MPG Residuals by Transmission Type (2)')
+```  
+
+
+```{r residCompPlot, anchor='residCompPlot', echo=FALSE}
+e <- c(resid(fit0),resid(fit1),resid(fit2),resid(fit3))
+fitFactor <- factor(c(rep('itc',n),rep('am',n),rep('am+wt',n),rep('am+wt+hp',n)),levels=c('itc','am','am+wt','am+wt+hp'))
+
+ggplot(data.frame(e=e,fit=fitFactor),aes(y=e,x=fit,fill=fit)) +
+  geom_dotplot(binaxis='y',size=1,stackdir='center',binwidth = 0.25) +
+  xlab('Fitting Approach') +
+  ylab('Residual MPG') +
+  ggtitle('Residual Fit for Different Models (3)')
+```
+
+
+```{r residPlotFit3, anchor='residPlotFit3', echo=FALSE}
+qplot(.fitted, .resid, data = fortify(fit3, mtcars), colour=factor(am)) +
+  geom_hline(yintercept = 0) +
+  xlab('Fitted values\nlm(mpg~am+wt+hp)') +
+  ylab('Residual MPG') +
+  ggtitle('MPG Residuals by Transmission Type (4)') +
+  geom_smooth(method='lm')
+```
+
+
+```{r summaryFit3, anchor="summaryFit3", echo=FALSE}
+par(oma=c(0,0,4,0))
+par(mfrow=c(2,2))
+plot(fit3)
+title(outer=TRUE)
+```
